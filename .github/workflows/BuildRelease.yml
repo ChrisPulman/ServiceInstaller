@@ -2,7 +2,7 @@ name: ServiceInstaller CI-Build
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 jobs:
   build-and-release:
