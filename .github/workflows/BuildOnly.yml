@@ -2,7 +2,7 @@ name: ServiceInstaller CI-BuildOnly
 
 on:
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 jobs:
   ci-build-and-test:
