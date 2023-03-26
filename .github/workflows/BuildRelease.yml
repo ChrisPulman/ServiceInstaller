@@ -68,14 +68,6 @@ jobs:
     - name: Changelog
       uses: glennawatson/ChangeLog@v1
       id: changelog
-      
-    - name: Recreate release
-      uses: GongT/actions-recreate-release@v1
-      with:
-        # The name of the tag. This should come from the webhook payload, `github.GITHUB_REF` when a user pushes a new tag
-        tag_name: github.GITHUB_REF
-        release_name: ${{ steps.nbgv.outputs.SemVer2 }}
-        body: ${{ steps.changelog.outputs.commitLog }}
 
     - name: NuGet Push
       env:
