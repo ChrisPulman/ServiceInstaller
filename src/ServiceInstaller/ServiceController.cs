@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System;
 using System.Diagnostics;
 using System.Management;
 using System.Runtime.InteropServices;
@@ -14,6 +15,14 @@ namespace ServiceInstaller;
 /// </summary>
 public static class ServiceController
 {
+    private static string[] _commands = Array.Empty<string>();
+
+    /// <summary>
+    /// Adds the commands.
+    /// </summary>
+    /// <param name="commands">The commands.</param>
+    public static void AddApplicationArguments(params string[] commands) => _commands = commands;
+
     /// <summary>
     /// Handles the service request.
     /// </summary>
@@ -21,14 +30,14 @@ public static class ServiceController
     /// <param name="serviceName">Name of the service.</param>
     /// <param name="displayName">The display name of the service.</param>
     /// <returns>The responce for the request.</returns>
-    public static string HandleRequest(string command, string serviceName, string displayName)
+    public static string HandleRequest(string? command, string serviceName, string displayName)
     {
         try
         {
             var status = GetServiceStatus(serviceName);
-            switch (command)
+            switch (command?.ToLowerInvariant())
             {
-                case "-Install":
+                case "-install":
                     // Installs and starts the service
                     if (status == ServiceState.NotFound)
                     {
@@ -64,11 +73,11 @@ public static class ServiceController
                     }
 
                     return "Service installation failed";
-                case "-Uninstall":
+                case "-uninstall":
                     // Uninstalls the service
                     Uninstall(serviceName);
                     return "Service Uninstalled, please Reboot";
-                case "-Start":
+                case "-start":
                     // Starts the service
                     StartService(serviceName);
                     Thread.Sleep(1000);
@@ -80,7 +89,7 @@ public static class ServiceController
 
                     return "Service failed to start";
 
-                case "-Stop":
+                case "-stop":
                     // Stops the service
                     StopService(serviceName);
                     Thread.Sleep(1000);
@@ -92,23 +101,33 @@ public static class ServiceController
 
                     return "Service failed to stop";
 
-                case "-Status":
+                case "-status":
                     // Checks the status of the service
                     return GetServiceStatus(serviceName).ToString();
-                case "-IsInstalled":
+                case "-isinstalled":
                     // Check if service is installed
                     return $"The service {(ServiceIsInstalled(serviceName) ? "is" : "is not")} installed";
 
                 default:
-                    return new StringBuilder()
-                        .AppendLine("Valid Arguments are:")
+                    var sb = new StringBuilder()
+                        .AppendLine("Valid Service Arguments are:")
                         .AppendLine("-Install")
                         .AppendLine("-Uninstall")
                         .AppendLine("-Start")
                         .AppendLine("-Stop")
                         .AppendLine("-Status")
-                        .AppendLine("-IsInstalled")
-                        .ToString();
+                        .AppendLine("-IsInstalled");
+
+                    if (_commands.Length > 0)
+                    {
+                        sb.AppendLine("Additional Arguments:");
+                        foreach (var item in _commands)
+                        {
+                            sb.AppendLine(item);
+                        }
+                    }
+
+                    return sb.ToString();
             }
         }
         catch (Exception ex)
@@ -295,6 +314,12 @@ public static class ServiceController
     /// <returns>A string of the path to the service.</returns>
     internal static string? GetServicePath(string processName)
     {
+        // Ensure the process is running in Windows
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return string.Empty;
+        }
+
         var process = Process.GetProcessesByName(processName).FirstOrDefault();
         try
         {
@@ -302,16 +327,7 @@ public static class ServiceController
         }
         catch
         {
-            const string query = "SELECT ExecutablePath, ProcessID FROM Win32_Process";
-            var searcher = new ManagementObjectSearcher(query);
-            foreach (var path in from item in searcher.Get().Cast<ManagementObject>()
-                                 let id = item["ProcessID"]
-                                 let path = item["ExecutablePath"]
-                                 where path != null && id.ToString() == process?.Id.ToString()
-                                 select path)
-            {
-                return path.ToString();
-            }
+            GetExecutablePath(process?.Id.ToString());
         }
 
         return string.Empty;
@@ -330,16 +346,7 @@ public static class ServiceController
         }
         catch
         {
-            const string query = "SELECT ExecutablePath, ProcessID FROM Win32_Process";
-            var searcher = new ManagementObjectSearcher(query);
-            foreach (var path in from item in searcher.Get().Cast<ManagementObject>()
-                                 let id = item["ProcessID"]
-                                 let path = item["ExecutablePath"]
-                                 where path != null && id.ToString() == process?.Id.ToString()
-                                 select path)
-            {
-                return path.ToString();
-            }
+            GetExecutablePath(process?.Id.ToString());
         }
 
         return string.Empty;
@@ -377,7 +384,35 @@ public static class ServiceController
         }
     }
 
+    private static string? GetExecutablePath(string? processId)
+    {
+        // Ensure the process is running in Windows
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return string.Empty;
+        }
+
+        const string query = "SELECT ExecutablePath, ProcessID FROM Win32_Process";
+        var searcher = new ManagementObjectSearcher(query);
+#pragma warning disable CA1416 // Validate platform compatibility
+        foreach (var path in from item in searcher.Get().Cast<ManagementObject>()
+                             let id = item["ProcessID"]
+                             let path = item["ExecutablePath"]
+                             where path != null && id.ToString() == processId
+                             select path)
+        {
+            return path.ToString();
+        }
+#pragma warning restore CA1416 // Validate platform compatibility
+
+        return string.Empty;
+    }
+
+#if NETSTANDARD2_0
     private static void StartService(IntPtr service)
+#else
+    private static void StartService(in IntPtr service)
+#endif
     {
         _ = NativeMethods.StartService(service, 0, 0);
         var changedStatus = WaitForServiceStatus(service, ServiceState.StartPending, ServiceState.Running);
@@ -387,7 +422,11 @@ public static class ServiceController
         }
     }
 
+#if NETSTANDARD2_0
     private static void StopService(IntPtr service)
+#else
+    private static void StopService(in IntPtr service)
+#endif
     {
         var status = new NativeMethods.SERVICE_STATUS();
         _ = NativeMethods.ControlService(service, ServiceControl.Stop, status);
@@ -398,7 +437,11 @@ public static class ServiceController
         }
     }
 
+#if NETSTANDARD2_0
     private static ServiceState GetServiceStatus(IntPtr service)
+#else
+    private static ServiceState GetServiceStatus(in IntPtr service)
+#endif
     {
         var status = new NativeMethods.SERVICE_STATUS();
 
@@ -410,7 +453,11 @@ public static class ServiceController
         return status.dwCurrentState;
     }
 
+#if NETSTANDARD2_0
     private static bool WaitForServiceStatus(IntPtr service, ServiceState waitStatus, ServiceState desiredStatus)
+#else
+    private static bool WaitForServiceStatus(in IntPtr service, ServiceState waitStatus, ServiceState desiredStatus)
+#endif
     {
         var status = new NativeMethods.SERVICE_STATUS();
 
