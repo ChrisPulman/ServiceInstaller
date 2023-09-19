@@ -29,8 +29,11 @@ public static class ServiceController
     /// <param name="command">The command (-Install, -Uninstall, -Start, -Stop, -Status, -IsInstalled) normally pass args[0] from commandline variables.</param>
     /// <param name="serviceName">Name of the service.</param>
     /// <param name="displayName">The display name of the service.</param>
-    /// <returns>The responce for the request.</returns>
-    public static string HandleRequest(string? command, string serviceName, string displayName)
+    /// <param name="parameters">The parameters.</param>
+    /// <returns>
+    /// The responce for the request.
+    /// </returns>
+    public static string HandleRequest(string? command, string serviceName, string displayName, params string[] parameters)
     {
         try
         {
@@ -44,7 +47,7 @@ public static class ServiceController
                         var fileName = GetServicePath();
                         if (fileName != null)
                         {
-                            InstallAndStart(serviceName, displayName, fileName);
+                            InstallAndStart(serviceName, displayName, fileName, parameters ?? Array.Empty<string>());
                             Thread.Sleep(1000);
                             status = GetServiceStatus(serviceName);
                             if (status == ServiceState.Running)
@@ -209,8 +212,9 @@ public static class ServiceController
     /// <param name="serviceName">Name of the service.</param>
     /// <param name="displayName">The display name.</param>
     /// <param name="fileName">Name of the file.</param>
-    /// <exception cref="ApplicationException">Failed to install service.</exception>
-    internal static void InstallAndStart(string serviceName, string displayName, string fileName)
+    /// <param name="parameters">The parameters.</param>
+    /// <exception cref="System.ApplicationException">Failed to install service.</exception>
+    internal static void InstallAndStart(string serviceName, string displayName, string fileName, params string[] parameters)
     {
         var scm = OpenSCManager(ScmAccessRights.AllAccess);
 
@@ -220,7 +224,8 @@ public static class ServiceController
 
             if (service == IntPtr.Zero)
             {
-                service = NativeMethods.CreateService(scm, serviceName, displayName, ServiceAccessRights.AllAccess, NativeMethods.SERVICE_WIN32_OWN_PROCESS, ServiceBootFlag.AutoStart, ServiceError.Normal, fileName, null!, IntPtr.Zero, null!, null!, null!);
+                var fileNameAndParameters = CombineFileNameAndParameters(fileName, parameters);
+                service = NativeMethods.CreateService(scm, serviceName, displayName, ServiceAccessRights.AllAccess, NativeMethods.SERVICE_WIN32_OWN_PROCESS, ServiceBootFlag.AutoStart, ServiceError.Normal, fileNameAndParameters, null!, IntPtr.Zero, null!, null!, null!);
             }
 
             if (service == IntPtr.Zero)
@@ -247,7 +252,7 @@ public static class ServiceController
     /// Starts the service.
     /// </summary>
     /// <param name="serviceName">Name of the service.</param>
-    /// <exception cref="ApplicationException">Could not open service.</exception>
+    /// <exception cref="System.ApplicationException">Could not open service.</exception>
     internal static void StartService(string serviceName)
     {
         var scm = OpenSCManager(ScmAccessRights.Connect);
@@ -382,6 +387,27 @@ public static class ServiceController
         {
             NativeMethods.CloseServiceHandle(scm);
         }
+    }
+
+    private static string CombineFileNameAndParameters(string fileName, string[] parameters)
+    {
+        if (parameters.Length == 0)
+        {
+            return fileName;
+        }
+
+        var sb = new StringBuilder();
+        sb.Append('"').Append(fileName).Append('"').Append(' ');
+
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            sb.Append(parameters[i]).Append(' ');
+        }
+
+        // remove space from last parameter
+        sb.Length--;
+
+        return sb.ToString();
     }
 
     private static string? GetExecutablePath(string? processId)
