@@ -1,31 +1,17 @@
 name: ServiceInstaller CI-BuildOnly
 
 on:
-  pull_request:
-    branches: [ "main" ]
+  push:
+    branches-ignore:
+      - main
 
 jobs:
-  ci-build-and-test:
-
-    runs-on: windows-2022
+  windows-latest:
+    name: windows-latest
+    runs-on: windows-latest
     outputs:
       nbgv: ${{ steps.nbgv.outputs.SemVer2 }}
     steps:
-    - name: Get Current Visual Studio Information
-      shell: bash
-      run: |
-        dotnet tool update -g dotnet-vs
-        echo "-- About RELEASE --"
-        vs where release
-
-    - name: Update Visual Studio Latest Release
-      shell: bash
-      run: |
-        echo "-- Update RELEASE --"
-        vs update release Enterprise
-        vs modify release Enterprise +mobile +desktop +uwp +web
-        echo "-- About RELEASE Updated --"
-        vs where release
         
     - name: Checkout
       uses: actions/checkout@v3
@@ -38,6 +24,7 @@ jobs:
         dotnet-version: |
             6.0.x
             7.0.x
+            8.0.x
 
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v1.1.3
