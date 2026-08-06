@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>serviceinstaller</ToolCommandName>
+    <PackageId>ServiceInstaller.Cli</PackageId>
+    <Description>A terminal CLI for creating, configuring, querying, and controlling Windows services.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ServiceInstaller.Tests" />
+    <ProjectReference Include="..\ServiceInstaller\ServiceInstaller.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,157 @@
+name: BuildDeploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Release level
+        required: true
+        type: choice
+        options: [patch, minor, major]
+      channel:
+        description: Release channel; none creates a stable release
+        required: true
+        default: none
+        type: choice
+        options: [none, alpha, beta, rc]
+      sourceRef:
+        description: Optional git ref to release
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+env:
+  configuration: Release
+  solutionFile: ServiceInstaller.slnx
+  solutionFolder: src
+  minMajorMinorVersion: '1.1'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    environment:
+      name: release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sourceRef }}
+          fetch-depth: 0
+          lfs: true
+
+      - name: Compute release version
+        id: version
+        shell: bash
+        env:
+          BUMP: ${{ inputs.bump }}
+          CHANNEL: ${{ inputs.channel }}
+          FLOOR: ${{ env.minMajorMinorVersion }}.0
+        run: |
+          set -euo pipefail
+          LAST="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | grep -Ev -- '-' | sort -V | tail -1 | sed 's/^v//' || true)"
+          BASELINE="${LAST:-0.0.0}"
+          IFS=. read -r MAJOR MINOR PATCH <<< "$BASELINE"
+          case "$BUMP" in
+            major) CORE="$((MAJOR + 1)).0.0" ;;
+            minor) CORE="${MAJOR}.$((MINOR + 1)).0" ;;
+            patch) CORE="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+            *) echo "::error::Invalid bump '$BUMP'."; exit 1 ;;
+          esac
+          CORE="$(printf '%s\n%s\n' "$FLOOR" "$CORE" | sort -V | tail -1)"
+          if [ "$CHANNEL" = none ]; then
+            VERSION="$CORE"
+            PRERELEASE=false
+          else
+            case "$CHANNEL" in alpha|beta|rc) ;; *) echo "::error::Invalid channel '$CHANNEL'."; exit 1 ;; esac
+            MAXN="$(git tag --list "v${CORE}-${CHANNEL}.[0-9]*" | sed 's/.*\.//' | sort -n | tail -1)"
+            VERSION="${CORE}-${CHANNEL}.$((${MAXN:-0} + 1))"
+            PRERELEASE=true
+          fi
+          TAG="v${VERSION}"
+          git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null && { echo "::error::Tag ${TAG} already exists."; exit 1; }
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+          echo "MinVerVersionOverride=${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+            11.0.100-preview.6.26359.118
+          dotnet-quality: preview
+          cache: true
+          cache-dependency-path: |
+            **/Directory.Packages.props
+            **/*.csproj
+            **/global.json
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+        with:
+          vs-prerelease: true
+
+      - name: Compile
+        run: ./build.cmd Compile --configuration ${{ env.configuration }}
+        env:
+          NUKE_TELEMETRY_OPTOUT: 'true'
+
+      - name: Tests and coverage
+        shell: bash
+        working-directory: ${{ env.solutionFolder }}
+        run: |
+          dotnet test --solution "${{ env.solutionFile }}" \
+            --configuration "${{ env.configuration }}" \
+            --no-build \
+            --max-parallel-test-modules 1 \
+            --coverage \
+            --coverage-output-format cobertura \
+            --results-directory ./TestResults
+
+      - name: Verify 100% production coverage
+        shell: pwsh
+        working-directory: ${{ env.solutionFolder }}
+        run: ./eng/verify-coverage.ps1 -ResultsDirectory ./TestResults
+
+      - name: Pack NuGet packages
+        shell: bash
+        working-directory: ${{ env.solutionFolder }}
+        run: >-
+          dotnet pack --no-build --no-restore --configuration "${{ env.configuration }}"
+          "${{ env.solutionFile }}" -o "${GITHUB_WORKSPACE}/packages"
+          -p:MinVerVersionOverride="${{ steps.version.outputs.version }}"
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget
+          path: |
+            packages/*.nupkg
+            packages/*.snupkg
+          if-no-files-found: error
+
+      - name: Push packages to NuGet
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          Get-ChildItem -LiteralPath packages -Filter '*.nupkg' |
+            Where-Object { $_.Name -notlike '*.snupkg' } |
+            ForEach-Object {
+            dotnet nuget push $_.FullName --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY --skip-duplicate
+          }
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          args=(release create "${{ steps.version.outputs.tag }}" packages/* --target "$(git rev-parse HEAD)" --title "${{ steps.version.outputs.tag }}" --generate-notes)
+          [ "${{ steps.version.outputs.prerelease }}" = true ] && args+=(--prerelease)
+          gh "${args[@]}"
