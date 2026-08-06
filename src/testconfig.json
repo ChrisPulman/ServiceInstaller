@@ -1,0 +1,24 @@
+{
+  "platform": {
+    "execution": {
+      "parallel": false
+    }
+  },
+  "extensions": [
+    {
+      "extensionId": "Microsoft.Testing.Extensions.CodeCoverage",
+      "settings": {
+        "format": "cobertura",
+        "modulePaths": {
+          "include": [
+            "ServiceInstaller\\..*"
+          ],
+          "exclude": [
+            ".*Tests.*",
+            ".*TestRunner.*"
+          ]
+        }
+      }
+    }
+  ]
+}

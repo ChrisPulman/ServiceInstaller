@@ -1,24 +1,34 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 namespace ServiceInstaller.Enums;
 
+/// <summary>Defines service access rights.</summary>
 [Flags]
 internal enum ServiceAccessRights
 {
+    /// <summary>Grants no access.</summary>
     None = 0,
-    QueryConfig = 0x1,
-    ChangeConfig = 0x2,
-    QueryStatus = 0x4,
-    EnumerateDependants = 0x8,
-    Start = 0x10,
-    Stop = 0x20,
-    PauseContinue = 0x40,
-    Interrogate = 0x80,
-    UserDefinedControl = 0x100,
+
+    /// <summary>Grants configuration-query access.</summary>
+    QueryConfig = 0x0001,
+
+    /// <summary>Grants configuration-change access.</summary>
+    ChangeConfig = 0x0002,
+
+    /// <summary>Grants status-query access.</summary>
+    QueryStatus = 0x0004,
+
+    /// <summary>Grants start access.</summary>
+    Start = 0x0010,
+
+    /// <summary>Grants stop access.</summary>
+    Stop = 0x0020,
+
+    /// <summary>Grants pause and continue access.</summary>
+    PauseContinue = 0x0040,
+
+    /// <summary>Grants deletion access.</summary>
     Delete = 0x00010000,
-    StandardRightsRequired = 0xF0000,
-    AllAccess = StandardRightsRequired | QueryConfig | ChangeConfig |
-                 QueryStatus | EnumerateDependants | Start | Stop | PauseContinue |
-                 Interrogate | UserDefinedControl
 }

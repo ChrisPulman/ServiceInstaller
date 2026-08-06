@@ -1,18 +1,18 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2019-2026 Chris Pulman and contributors. All rights reserved.
+// Chris Pulman and contributors licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 namespace ServiceInstaller.Enums;
 
+/// <summary>Defines service control messages.</summary>
 internal enum ServiceControl
 {
+    /// <summary>Requests that a service stop.</summary>
     Stop = 0x00000001,
+
+    /// <summary>Requests that a service pause.</summary>
     Pause = 0x00000002,
+
+    /// <summary>Requests that a service continue.</summary>
     Continue = 0x00000003,
-    Interrogate = 0x00000004,
-    Shutdown = 0x00000005,
-    ParamChange = 0x00000006,
-    NetBindAdd = 0x00000007,
-    NetBindRemove = 0x00000008,
-    NetBindEnable = 0x00000009,
-    NetBindDisable = 0x0000000A
 }
