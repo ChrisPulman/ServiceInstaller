@@ -8,7 +8,7 @@
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.9.0" />
     <PackageVersion Include="Microsoft.Testing.Platform.MSBuild" Version="2.3.3" />
-    <PackageVersion Include="MinVer" Version="7.0.0" />
+    <PackageVersion Include="MinVer" Version="8.0.0" />
     <PackageVersion Include="Nuke.Common" Version="10.1.0" />
     <PackageVersion Include="NuGet.Packaging" Version="7.6.0" />
     <PackageVersion Include="PerformanceSharp.Analyzers" Version="3.46.2" />
